@@ -5,3 +5,4 @@ git commit -m "Initial commit: NetHunter kernel builder for begonia"
 git remote add origin https://github.com/artnigman-art/begonia-nethunter-8pro.git
 git branch -M main
 git push -u origin main
+
