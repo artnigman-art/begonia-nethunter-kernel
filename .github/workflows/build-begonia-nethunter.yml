@@ -166,36 +166,6 @@ jobs:
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             -j$(nproc) 2>&1 || echo "WARNING: mt7603u vendor driver build failed, continuing anyway"
 
-      - name: Clone MT7601U patched driver (injection + AP mode)
-        run: |
-          git clone --depth=1 \
-            https://github.com/Aexe-Software/MT7601U-Driver-Linux.git \
-            mt7601u-patched
-
-      - name: Build MT7601U patched driver (out-of-tree module)
-        run: |
-          export PATH="${{ github.workspace }}/clang-crDroid/bin:$PATH"
-
-          cd mt7601u-patched
-
-          # Aexe-Software driver uses standard out-of-tree Kbuild
-          make \
-            KSRC=${{ github.workspace }}/out \
-            ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CC=clang \
-            -j$(nproc) 2>&1 | tail -50
-
-          if [ -f "mt7601u.ko" ]; then
-            echo "SUCCESS: mt7601u.ko built (with injection + AP mode)"
-            file mt7601u.ko
-          else
-            echo "FAILED: mt7601u.ko not found"
-            echo "--- searching for .ko files ---"
-            find . -name "*.ko" -type f 2>/dev/null || true
-            echo "Device ID: 148f:7601 (Ralink MT7601U)"
-          fi
-
       - name: Package AnyKernel3
         run: |
           if [ -f "${{ env.OUT_DIR }}/arch/arm64/boot/Image.gz" ]; then
@@ -270,45 +240,6 @@ jobs:
             chmod +x AnyKernel3/modules/install-8821cu.sh
           else
             echo "WARNING: RTL8811CU/8821CU module not found, skipping"
-          fi
-
-          # Include MT7601U patched driver module + firmware if built
-          if [ -f "mt7601u-patched/mt7601u.ko" ]; then
-            echo "Including MT7601U patched driver module..."
-            mkdir -p AnyKernel3/modules
-            cp mt7601u-patched/mt7601u.ko AnyKernel3/modules/
-
-            # Copy firmware if present in the driver tree
-            if [ -f "mt7601u-patched/mt7601u.bin" ]; then
-              cp mt7601u-patched/mt7601u.bin AnyKernel3/modules/
-            elif [ -f "mt7601u-patched/firmware/mt7601u.bin" ]; then
-              cp mt7601u-patched/firmware/mt7601u.bin AnyKernel3/modules/
-            fi
-
-            echo '#!/system/bin/sh' > AnyKernel3/modules/install-mt7601u.sh
-            echo 'MODDIR="$(dirname "$(readlink -f "$0")")"' >> AnyKernel3/modules/install-mt7601u.sh
-            echo '' >> AnyKernel3/modules/install-mt7601u.sh
-            echo 'mount -o remount,rw / 2>/dev/null || true' >> AnyKernel3/modules/install-mt7601u.sh
-            echo 'mkdir -p /lib/firmware 2>/dev/null || true' >> AnyKernel3/modules/install-mt7601u.sh
-            echo 'cp -f "$MODDIR"/mt7601u.bin /lib/firmware/ 2>/dev/null || true' >> AnyKernel3/modules/install-mt7601u.sh
-            echo '' >> AnyKernel3/modules/install-mt7601u.sh
-            echo '# Remove in-kernel mt7601u if loaded, then load patched version' >> AnyKernel3/modules/install-mt7601u.sh
-            echo 'rmmod mt7601u 2>/dev/null || true' >> AnyKernel3/modules/install-mt7601u.sh
-            echo 'insmod "$MODDIR"/mt7601u.ko' >> AnyKernel3/modules/install-mt7601u.sh
-            echo '' >> AnyKernel3/modules/install-mt7601u.sh
-            echo 'if lsmod | grep -q mt7601u; then' >> AnyKernel3/modules/install-mt7601u.sh
-            echo '  echo "MT7601U patched driver loaded (injection + AP mode)"' >> AnyKernel3/modules/install-mt7601u.sh
-            echo '  echo "Supported chipset: MT7601U (148f:7601)"' >> AnyKernel3/modules/install-mt7601u.sh
-            echo '  echo "Modes: STA / Monitor / Injection / AP"' >> AnyKernel3/modules/install-mt7601u.sh
-            echo '  echo "Interface:"' >> AnyKernel3/modules/install-mt7601u.sh
-            echo '  iw dev 2>/dev/null || ip link show 2>/dev/null | grep -E "^[0-9]+: wl" || true' >> AnyKernel3/modules/install-mt7601u.sh
-            echo 'else' >> AnyKernel3/modules/install-mt7601u.sh
-            echo '  echo "Failed to load MT7601U patched driver"' >> AnyKernel3/modules/install-mt7601u.sh
-            echo '  echo "Check: is the USB adapter plugged in with an OTG cable?"' >> AnyKernel3/modules/install-mt7601u.sh
-            echo 'fi' >> AnyKernel3/modules/install-mt7601u.sh
-            chmod +x AnyKernel3/modules/install-mt7601u.sh
-          else
-            echo "WARNING: MT7601U patched module not found, skipping"
           fi
 
           cd AnyKernel3
